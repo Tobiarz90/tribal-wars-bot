@@ -71,9 +71,9 @@ def compare_dicts(units_dict, pattern_dict):
 def counter():
     row_list = wait.until(ec.presence_of_all_elements_located((By.CLASS_NAME, 'farm_icon_a')))
     row_list = row_list[1:]
-    print('List of rows:')
-    for i in row_list:
-        print(i.get_attribute('class'))
+    # print('List of rows:')
+    # for i in row_list:
+    #     print(i.get_attribute('class'))
 
     click_rows = len(row_list)
     click_units = compare_dicts(count_units(), get_pattern_dict())
@@ -128,36 +128,34 @@ def count_resources():
     return resources_list
 
 
-def can_i_recruit(type_of_unit):
-    # get necessary resources using count_resources() function
-    dict_res = count_resources()
-    wood = dict_res['wood']
-    stone = dict_res['stone']
-    iron = dict_res['iron']
-    pop = dict_res['getable_pop']
+def recruit(dict_res):
+    values = recruitment.get(unitType)
+    num = int(min(dict_res['wood'] / values[0],
+                  dict_res['stone'] / values[1],
+                  dict_res['iron'] / values[2],
+                  dict_res['getable_pop'] / values[3]))
+    print(f'I can recruit {num} units')
 
-    # if I can recruit then recruit
-    term = wood >= 125 and stone >= 100 and iron >= 250 and pop >= 4
-    if term:
-        recruit(type_of_unit)
+    if not num >= recruit_units:
+        return
 
-
-def recruit(unit_type):
-    url = driver.current_url[:-7] + 'stable'
+    # get new url based on what type of unit do you want to get
+    url = driver.current_url
+    pos = url.find('screen')
+    driver.get(f'{url[:pos]}screen={values[4]}')
     sleep()
-    driver.get(url)
 
-    light_btn = wait.until(ec.presence_of_element_located((By.ID, f'{unit_type}_0_a')))
-    print(f'Recruited {light_btn.text[1]} light cavalry at {what_time()}')
+    unit_box = wait.until(ec.presence_of_element_located((By.XPATH, f'//input[@name="{unitType}"]')))
+    print(unit_box.get_attribute('name'), end=' | ')
+    print(unit_box.get_attribute('id'), end=' | ')
+    print(unit_box.get_attribute('class'))
+    unit_box.send_keys(num)
     sleep()
-    light_btn.click()
 
-    recruit_btn = wait.until(ec.presence_of_element_located((By.XPATH, '//*[@id="train_form"]/table/tbody/tr[4]/td['
-                                                                       '2]/input')))
-    sleep()
+    recruit_btn = wait.until(ec.presence_of_element_located((By.CLASS_NAME, 'btn-recruit')))
     recruit_btn.click()
+    print(f'I recruited {num} units type {unitType}')
 
-    url = driver.current_url[:-6] + 'am_farm'
     sleep()
     driver.get(url)
 
@@ -168,18 +166,19 @@ def what_time():
 
 
 def main():
-    result = counter()
-    times_click = result[0]
-    row_list = result[1]
+    while True:
+        result = counter()
+        times_click = result[0]
+        row_list = result[1]
 
-    if times_click != 0 and len(row_list) != 0:
-        villages_id(times_click, row_list)
+        if times_click != 0 and len(row_list) != 0:
+            villages_id(times_click, row_list)
 
-    # check if I can recruit a unit
-    can_i_recruit(unitType)
+        # check if I can recruit a unit
+        recruit(count_resources())
 
-    driver.refresh()
-    time.sleep(round(random.uniform(1, 3), 2))
+        driver.refresh()
+        time.sleep(round(random.uniform(1, 3), 2))
 
 
 try:
@@ -195,9 +194,18 @@ try:
     # user settings
     userName = ' '      # <- type your username here
     passWord = ' '      # <- type your password here
-    unitType = 'light'
-
+    unitType = 'axe'    # <- set type of unit you want to recruit
+    recruit_units = 15  # <- recruit when you can recruit at least n units
     choice = 'a'        # <- set which button bot have to click [a or b]
+
+    # 'unit_type': [wood, stone, iron, population, building]
+    recruitment = {'spear': [50, 30, 10, 1, 'barracks'],
+                   'sword': [30, 30, 70, 1, 'barracks'],
+                   'axe': [60, 30, 40, 1, 'barracks'],
+                   'spy': [50, 50, 20, 2, 'stable'],
+                   'light': [125, 100, 250, 4, 'stable'],
+                   'heavy': [200, 150, 600, 6, 'stable']}
+
     if choice == 'a':
         form = 1
     elif choice == 'b':
@@ -208,8 +216,7 @@ try:
     print(f'BOT started work at {what_time()}')
 
     # Bot running
-    while True:
-        main()
+    main()
 
 except Exception as e:
     # End
