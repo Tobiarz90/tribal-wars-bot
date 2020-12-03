@@ -107,25 +107,23 @@ def villages_id(count, rows):
 
 
 def count_resources():
-    # get data from page
-    resources = wait.until(ec.presence_of_all_elements_located((By.CLASS_NAME, 'res')))
-    curent_population = wait.until(ec.presence_of_element_located((By.ID, 'pop_current_label')))
-    max_pop = wait.until(ec.presence_of_element_located((By.ID, 'pop_max_label')))
+    resources_dict = {}
+    span = 1
+    box = 2
+    while box <= 10:
+        x_path = f'//td[@class ="topAlign"][4]/table/tbody/tr[1]/td/table/tbody/tr/td[{box}]/span'
+        if box == 10:
+            x_path += f'[{span}]'
+            if not span == 2:
+                box = 8
+            span += 1
+        resource = wait.until(ec.presence_of_element_located((By.XPATH, x_path)))
+        resources_dict.setdefault(resource.get_attribute('id'), int(resource.text))
+        box += 2
+    resources_dict.setdefault('getable_pop', resources_dict['pop_max_label'] - resources_dict['pop_current_label'])
 
-    # get amount of population
-    curent_population = int(curent_population.text)
-    max_pop = int(max_pop.text)
-    getable_pop = max_pop - curent_population   # getable -> dostępna
-
-    resources_list = {product.get_attribute('id'): int(product.text) for product in resources}
-
-    # assign population to resources_list
-    resources_list.setdefault('curent_population', curent_population)
-    resources_list.setdefault('max_pop', max_pop)
-    resources_list.setdefault('getable_pop', getable_pop)
-
-    print('Resources:', resources_list)
-    return resources_list
+    print('Resources:', resources_dict)
+    return resources_dict
 
 
 def recruit(dict_res):
