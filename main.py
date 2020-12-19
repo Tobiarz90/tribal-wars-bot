@@ -2,7 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
-import datetime
+import logging
 import time
 import random
 
@@ -29,55 +29,35 @@ def sleep():
 
 
 def count_units():
-    units_dict = {}
     for i in range(2, 9):
         unit = driver.find_element_by_xpath(f'//*[@id="units_home"]/tbody/tr[2]/td[{i}]')
-        units_dict.setdefault(unit.get_attribute('id'), int(unit.text))
-
-    print('Units:', units_dict)
-    return units_dict
+        yield unit.get_attribute('id'), int(unit.text)
 
 
-def get_pattern_dict():
-    pattern_units = {}
+def get_pattern_gen():
     for k in range(1, 8):
         box = driver.find_element_by_xpath(f'//*[@id="content_value"]/div[2]/div/form[{form}]/table/tbody/tr[2]/td[{k}]'
                                            f'/input')
-        pattern_units.setdefault(box.get_attribute('name'), int(box.get_attribute('value')))
-
-    print('Template:', pattern_units)
-    return pattern_units
+        yield box.get_attribute('name'), int(box.get_attribute('value'))
 
 
-def compare_dicts(units_dict, pattern_dict):
+def compare_gens(units_gen, pattern_gen):
     count = 0
-    once = True
-    for key in units_dict:
-        if units_dict[key] >= pattern_dict[key]:
-            if pattern_dict[key] != 0:
-                units_division = units_dict[key] / pattern_dict[key]
-                if once:
-                    count = units_division
-                    once = False
-                else:
-                    if units_division < count:
-                        count = units_division
-        else:
-            return int(count)
+    for unit, pattern_unit in zip(units_gen, pattern_gen):
+        try:
+            count += unit[1] // pattern_unit[1]
+        except ZeroDivisionError:
+            pass
 
-    return int(count)
+    return count
 
 
 def counter():
     row_list = wait.until(ec.presence_of_all_elements_located((By.CLASS_NAME, 'farm_icon_a')))
     row_list = row_list[1:]
-    # print('List of rows:')
-    # for i in row_list:
-    #     print(i.get_attribute('class'))
 
     click_rows = len(row_list)
-    click_units = compare_dicts(count_units(), get_pattern_dict())
-    print('\nClicks based on the number of rows:', click_rows, '\nClicks based on the number of units:', click_units)
+    click_units = compare_gens(count_units(), get_pattern_gen())
 
     # how many times can I click
     if click_units < click_rows:
@@ -122,7 +102,6 @@ def count_resources():
         box += 2
     resources_dict.setdefault('getable_pop', resources_dict['pop_max_label'] - resources_dict['pop_current_label'])
 
-    print('Resources:', resources_dict)
     return resources_dict
 
 
@@ -144,23 +123,15 @@ def recruit(dict_res):
     sleep()
 
     unit_box = wait.until(ec.presence_of_element_located((By.XPATH, f'//input[@name="{unitType}"]')))
-    print(unit_box.get_attribute('name'), end=' | ')
-    print(unit_box.get_attribute('id'), end=' | ')
-    print(unit_box.get_attribute('class'))
     unit_box.send_keys(num)
     sleep()
 
     recruit_btn = wait.until(ec.presence_of_element_located((By.CLASS_NAME, 'btn-recruit')))
     recruit_btn.click()
-    print(f'I recruited {num} units type {unitType}')
+    logging.info(f'Recruited {num} units type {unitType}')
 
     sleep()
     driver.get(url)
-
-
-def what_time():
-    current_time = datetime.datetime.now()
-    return f'{current_time.hour}:{current_time.minute}:{current_time.second}'
 
 
 def main():
@@ -176,16 +147,22 @@ def main():
         recruit(count_resources())
 
         driver.refresh()
-        time.sleep(round(random.uniform(1, 3), 2))
+        time.sleep(round(random.uniform(1, 4), 2))
 
 
 try:
 
     options = webdriver.ChromeOptions()
-    options.add_argument('window-size=1400,1000')
+    options.add_argument('window-size=1500,1100')
+    options.add_argument('headless')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
     PATH = r'.\chromedriver.exe'
     driver = webdriver.Chrome(PATH, options=options)
-    driver.get(' ')     # <- type a link to your game server here
+
+    logging.basicConfig(filename='logs.log', level=logging.INFO,
+                        format='%(asctime)s:%(levelname)s:%(message)s')
+    
+    driver.get('https://www.plemiona.pl/')     # <- type a link to your game server here
     wait = WebDriverWait(driver, 8)
     print('Launched...')
 
@@ -211,20 +188,18 @@ try:
 
     # Log in
     readiness()
-    print(f'BOT started work at {what_time()}')
+    logging.info('BOT started work')
+    logging.info('Settings: user: {}, unit type {}, recruit {}, choice {}'
+                 .format(userName, unitType, recruit_units, choice))
 
     # Bot running
     main()
 
 except Exception as e:
-    # End
-    try:
-        print(r'[error] ¯\_(ツ)_/¯')
-        print(e)
+    print(r'[error] ¯\_()_/¯')
+    logging.error(e)
+    driver.quit()
 
-        driver.quit()
-        # send_email()
-
-        print(f'The program finished its operation at {what_time()}')
-    except Exception:
-        pass
+except KeyboardInterrupt:
+    logging.warning('The program finished its operation')
+    driver.quit()
